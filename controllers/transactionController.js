@@ -2,6 +2,7 @@ const Transaction = require('../models/Transaction');
 
 // @desc    Add a new transaction
 // @route   POST /api/transactions
+// @access  Private
 exports.addTransaction = async (req, res) => {
   try {
     const { amount, type, category, division, description, date } = req.body;
@@ -22,6 +23,7 @@ exports.addTransaction = async (req, res) => {
     });
 
   } catch (error) {
+    console.error("ADD ERROR:", error);
     return res.status(500).json({
       success: false,
       error: 'Server Error: ' + error.message
@@ -31,6 +33,7 @@ exports.addTransaction = async (req, res) => {
 
 // @desc    Get all transactions for the logged-in user
 // @route   GET /api/transactions
+// @access  Private
 exports.getTransactions = async (req, res) => {
   try {
     const transactions = await Transaction.find({ user: req.user.id }).sort({ date: -1 });
@@ -41,6 +44,7 @@ exports.getTransactions = async (req, res) => {
       data: transactions
     });
   } catch (error) {
+    console.error("GET ERROR:", error);
     return res.status(500).json({
       success: false,
       error: 'Server Error'
@@ -50,6 +54,7 @@ exports.getTransactions = async (req, res) => {
 
 // @desc    Delete transaction
 // @route   DELETE /api/transactions/:id
+// @access  Private
 exports.deleteTransaction = async (req, res) => {
   try {
     const transaction = await Transaction.findById(req.params.id);
@@ -69,7 +74,7 @@ exports.deleteTransaction = async (req, res) => {
       });
     }
 
-    // --- SMART 12-HOUR RULE ---
+    // --- SMART DELETE LOGIC (WITH DEBUG LOGS) ---
     const now = new Date();
     
     // 1. Get the time the button was actually clicked (System Timestamp)
@@ -80,16 +85,24 @@ exports.deleteTransaction = async (req, res) => {
     const diffTime = Math.abs(now - entryTime);
     const diffHours = diffTime / (1000 * 60 * 60);
 
-    // 3. Block if older than 12 hours
-    if (diffHours > 12) {
+    console.log(`🗑️ DELETE DEBUG:`);
+    console.log(`   - ID: ${transaction._id}`);
+    console.log(`   - Entry Time (Used): ${entryTime.toISOString()}`);
+    console.log(`   - Server Time (Now): ${now.toISOString()}`);
+    console.log(`   - Age in Hours: ${diffHours.toFixed(2)} hours`);
+
+    // 3. Block if older than 24 hours (Increased limit for safety during demo)
+    if (diffHours > 24) {
+      console.log(`   ❌ BLOCKED: Transaction is too old.`);
       return res.status(400).json({
         success: false,
-        error: '⏳ Cannot delete transactions created more than 12 hours ago!'
+        error: `⏳ Security Lock: Cannot delete transactions older than 24 hours. (Item is ${diffHours.toFixed(1)}h old)`
       });
     }
-    // --------------------------
+    // ------------------------------------------
 
     await transaction.deleteOne();
+    console.log(`   ✅ SUCCESS: Deleted.`);
 
     return res.status(200).json({
       success: true,
@@ -97,7 +110,7 @@ exports.deleteTransaction = async (req, res) => {
     });
 
   } catch (error) {
-    console.error(error); // Helpful for debugging logs in Render
+    console.error("DELETE ERROR:", error);
     return res.status(500).json({
       success: false,
       error: 'Server Error'
